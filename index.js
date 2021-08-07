@@ -1,11 +1,46 @@
 const taskElement = document.getElementById('task');
 const inputElement = document.getElementById('input');
+const controlsElement = document.getElementById('controls');
 let resultElement = document.getElementById('result');
 
 const RESULT_STATE = {
   NONE: 'none',
   RIGHT: 'right',
   WRONG: 'wrong',
+};
+
+const OPERATION = {
+  // +
+  ADDITION: 'addition',
+  // -
+  SUBTRACTION: 'subtraction',
+  // *
+  MULTIPLICATION: 'multiplication',
+};
+
+/**
+ * order - integer from 0
+ * range - any number
+ */
+const ControlByOperation = {
+  [OPERATION.ADDITION]: {
+    order: 0,
+    range: [0, 100],
+    sign: '+',
+    tooltip: 'Addition',
+  },
+  [OPERATION.SUBTRACTION]: {
+    order: 1,
+    range: [0, 100],
+    sign: '-',
+    tooltip: 'Subtraction',
+  },
+  [OPERATION.MULTIPLICATION]: {
+    order: 2,
+    range: [0, 10],
+    sign: '×',
+    tooltip: 'Multiplication',
+  },
 };
 
 const ResultStateByAnswer = {
@@ -18,9 +53,47 @@ const ClassByResultState = {
   [RESULT_STATE.WRONG]: 'fail',
 };
 
+let failRunTask = false;
 let previousResultState = null;
 let num1, num2, result;
 
+let operations = [OPERATION.ADDITION];
+
+// get data from local storage
+const savedOperations = localStorage.getItem('OPERATIONS');
+if (savedOperations && savedOperations.length > 0) {
+  operations = savedOperations;
+}
+
+// set controls
+Object.values(OPERATION)
+  .reduce(
+    (controlsToSet, operation) => {
+      const { sign, order } = ControlByOperation[operation];
+
+      const control = document.createElement('input');
+      control.setAttribute('id', operation);
+      control.setAttribute('type', 'checkbox');
+      operations.includes(operation) && control.setAttribute('checked', true);
+
+      const label = document.createElement('label');
+      label.setAttribute('for', operation);
+      label.innerText = sign;
+      
+      controlsToSet[order] = [control, label];
+
+      return controlsToSet;
+    },
+    [],
+  )
+  .forEach(([control, label] = []) => {
+    if (control && label) {
+      controlsElement.appendChild(control);
+      controlsElement.appendChild(label);
+    }
+  });
+
+// input listener
 inputElement.addEventListener('keydown', (event) => {
   if (!event.target.value) {
     return;
@@ -54,6 +127,15 @@ inputElement.addEventListener('keydown', (event) => {
   }
 });
 
+controlsElement.addEventListener('click', () => {
+  operations = getOperations();
+
+  if (failRunTask && operations.length > 0) {
+    setNumbers();
+  }
+});
+
+// run the app
 setNumbers();
 
 // FUNCTIONS
@@ -62,8 +144,42 @@ setNumbers();
  * NON-PURE function
  */
 function setNumbers() {
-  ({ num1, num2, result } = getNumbers());
-  taskElement.innerText = `${num1} + ${num2} =`;
+  if (operations.length === 0) {
+    setTimeout(() => alert('Choose at least one operation!'), 2000);
+    taskElement.innerText = 'N/A';
+    inputElement.disabled = true;
+    failRunTask = true;
+    
+    return;
+  }
+
+  if (failRunTask) {
+    inputElement.disabled = false;
+    failRunTask = false;
+  }
+
+  const operation = operations[getRandomInt(0, operations.length - 1)];
+  const { range: [from, to], sign } = ControlByOperation[operation];
+
+  ({ num1, num2, result } = getNumbers(from, to, operation));
+  taskElement.innerText = `${num1} ${sign} ${num2} =`;
+}
+
+/**
+ * NON-PURE function
+ */
+function getOperations(defaultOperation) {
+  return Array.from(controlsElement.children)
+    .filter((child) => child instanceof HTMLInputElement)
+    .reduce(
+      (operations, input) => {
+        const { checked, id } = input;
+        checked && operations.push(id);
+      
+        return operations;
+      },
+      [],
+    );
 }
 
 /**
@@ -91,15 +207,32 @@ function setClass(element, resultState, previousResultState) {
   element.classList.add(newClass);
 }
 
-function getNumbers() {
-  const num1 = getRandomInt(0, 100);
-  const num2 = getRandomInt(0, 100);
+function getNumbers(from = 0, to = 100, operation = OPERATION.ADDITION) {
+  const num1 = getRandomInt(from, to);
+  const num2 = getRandomInt(from, to);
+  const result = getResult(num1, num2, operation);
   
   return {
     num1,
     num2,
-    result: num1 + num2,
+    result,
   };
+}
+
+function getResult(num1, num2, operation = OPERATION.ADDITION) {
+  switch (operation) {
+    case OPERATION.ADDITION: {
+      return num1 + num2;
+    }
+
+    case OPERATION.SUBTRACTION: {
+      return num1 - num2;
+    }
+
+    case OPERATION.MULTIPLICATION: {
+      return num1 * num2;
+    }
+  }
 }
 
 /**
